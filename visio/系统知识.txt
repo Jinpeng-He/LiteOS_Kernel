@@ -1,0 +1,9 @@
+stm32f439；cortex-m4,单核
+
+C运行时库由编译器生产商提供：
+crt0.o，crt1.o，crtbegin.o，crtend.o...这些是glib或者uclibc，bionic-libc这些库提供的，类似于引导程序加载动态库
+可以做一些前期的处理，如libc库的初始化，全局对象的创建，如C++中在main函数之前执行的代码，创建的对象等
+同时当main函数退出的时候，做一些收尾工作
+
+
+main函数和中断使用MSP； 各个Task（线程）使用PSP
