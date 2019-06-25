@@ -143,8 +143,9 @@ Infinite_Loop:
 
 
 g_pfnVectors:
-
+  /*第一个字为MSP初始化的值,MSP初始化为ram的末尾地址:0x20010000*/
   .word _estack
+  /*第二个字为PC寄存器的值*/
   .word Reset_Handler
   .word NMI_Handler
   .word HardFault_Handler

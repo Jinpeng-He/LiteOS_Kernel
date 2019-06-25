@@ -41,8 +41,8 @@ _Min_Stack_Size = 0x400; /* required amount of stack */
 /* Specify the memory areas */
 MEMORY
 {
-RAM (xrw)      : ORIGIN = 0x20000000, LENGTH = 64K
-FLASH (rx)      : ORIGIN = 0x8000000, LENGTH = 512K
+RAM (xrw)      : ORIGIN = 0x20000000, LENGTH = 64K  /*0x20000000-0x20010000*/
+FLASH (rx)      : ORIGIN = 0x08000000, LENGTH = 512K /*0x08000000-0x08080000*/
 }
 
 /* Define output sections */
@@ -110,7 +110,7 @@ SECTIONS
     PROVIDE_HIDDEN (__fini_array_end = .);
   } >FLASH
 
-  /* used by the startup to initialize data */
+  /* used by the startup to initialize data data段在flash中的地址*/
   _sidata = LOADADDR(.data);
 
   /* Initialized data sections goes into RAM, load LMA copy after code */

@@ -133,29 +133,31 @@ LITE_OS_SEC_TEXT_INIT UINT32 LOS_Start(VOID)
 LITE_OS_SEC_TEXT_INIT UINT32 LOS_KernelInit(VOID)
 {
     UINT32 uwRet;
-
+    //liteos允许创建的最大任务数量初始化
     osRegister();
-
+    //|<---.data--->|<---.bss--->|<---user_heap_stack--->|<----system heap---->|<---MSP(main函数和中断使用的栈)--->|
+    //OS_SYS_MEM_ADDR就是system heap的起始地址
     m_aucSysMem0 = OS_SYS_MEM_ADDR;
+    //这里初始化system heap用于内存管理后面的LOS_MemAlloc就是从这里分配的
     uwRet = osMemSystemInit();
     if (uwRet != LOS_OK)
     {
         PRINT_ERR("osMemSystemInit error %d\n", uwRet);/*lint !e515*/
         return uwRet;
     }
-
+    //中断向量表初始化
 #if (LOSCFG_PLATFORM_HWI == YES)
     {
         osHwiInit();
     }
 #endif
-
+    //异常初始化，NMI,硬件,内存,总线硬件异常
 #if (LOSCFG_PLATFORM_EXC == YES)
     {
         osExcInit(MAX_EXC_MEM_SIZE);
     }
 #endif
-
+    //任务调度初始化，会从system heap中分配内存作为TCB任务控制块数组
     uwRet =osTaskInit();
     if (uwRet != LOS_OK)
     {

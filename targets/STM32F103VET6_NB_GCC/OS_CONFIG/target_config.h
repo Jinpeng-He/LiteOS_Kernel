@@ -346,7 +346,7 @@ extern "C" {
      * |              |<---_ebss                                                       _estack--->|
      * |                                 |<---LOS_HEAP_MEM_BEGIN               |                  |
      * |                                 |                 LOS_HEAP_MEM_END--->|                  |
-     * |                                                                   BOARD_SRAM_END_ADDR--->|
+     * |                                                BOARD_SRAM_END_ADDR--->|   MSP=_estack--->|
      *  ------------------------------------------------------------------------------------------
      * NOTE:
      * 1. If .ld file is not modified, Symbol LOS_HEAP_MEM_BEGIN will be aligned on the boundary of
