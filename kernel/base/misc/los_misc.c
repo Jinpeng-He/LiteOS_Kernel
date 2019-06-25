@@ -35,7 +35,6 @@
 #include "los_base.ph"
 #include "los_sys.ph"
 #include "los_task.ph"
-
 #include "los_hwi.h"
 
 LITE_OS_SEC_TEXT UINT32 LOS_Align(UINT32 uwAddr, UINT32 uwBoundary)
@@ -51,18 +50,38 @@ LITE_OS_SEC_TEXT_MINOR VOID LOS_Msleep(UINT32 uwMsecs)
 {
     UINT32 uwInterval = 0;
 
-    if (OS_INT_ACTIVE) {
+    if (OS_INT_ACTIVE)
+    {
         return;
     }
 
-    if (uwMsecs == 0) {
+    if (uwMsecs == 0)
+    {
         uwInterval = 0;
-    } else {
+    }
+    else
+    {
         uwInterval = LOS_MS2Tick(uwMsecs);
-        if (uwInterval == 0) {
+        if (uwInterval == 0)
+        {
              uwInterval = 1;
         }
     }
 
     (VOID)LOS_TaskDelay(uwInterval);
 }
+
+#if defined (__ICC430__) || defined (__TI_COMPILER_VERSION__)
+static const uint8_t clz_table_4bit[16] = { 4, 3, 2, 2, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0 };
+int __clz ( unsigned long x )
+{
+  int n;
+  if ((x & 0xFFFF0000) == 0) {n  = 16; x <<= 16;} else {n = 0;}
+  if ((x & 0xFF000000) == 0) {n +=  8; x <<=  8;}
+  if ((x & 0xF0000000) == 0) {n +=  4; x <<=  4;}
+  n += (int)clz_table_4bit[x >> (32-4)];
+  return n;
+}
+
+#endif
+
