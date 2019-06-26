@@ -228,26 +228,30 @@ LITE_OS_SEC_ALW_INLINE STATIC_INLINE VOID osMemSpitNode(VOID *pPool,
     LOS_MEM_DYN_NODE *pstNewFreeNode = (LOS_MEM_DYN_NODE *)NULL;
     LOS_MEM_DYN_NODE *pstNextNode = (LOS_MEM_DYN_NODE *)NULL;
     LOS_DL_LIST *pstListHead = (LOS_DL_LIST *)NULL;
-
+    //新的node跳过原来node uwAllocSize字节
     pstNewFreeNode = (LOS_MEM_DYN_NODE *)((UINT8 *)pstAllocNode + uwAllocSize);
     pstNewFreeNode->pstPreNode = pstAllocNode;
+    //修改新的node管理的大小
     pstNewFreeNode->uwSizeAndFlag = pstAllocNode->uwSizeAndFlag - uwAllocSize;
+    //修改找到的节点的管理大小
     pstAllocNode->uwSizeAndFlag = uwAllocSize;
+    //修改原来节点的紧挨着的下一个节点的前驱
     pstNextNode = OS_MEM_NEXT_NODE(pstNewFreeNode);
     pstNextNode->pstPreNode = pstNewFreeNode;
+    //如果原来节点紧挨着的节点没有使用,则将新分出来的节点和这个节点合并
     if (!OS_MEM_NODE_GET_USED_FLAG(pstNextNode->uwSizeAndFlag))
     {
         LOS_ListDelete(&(pstNextNode->stFreeNodeInfo));
         osMemMergeNode(pstNextNode);
     }
-
+    //根据新分出来的节点的大小，在第二部分数组中找到合适的链表
     pstListHead = OS_MEM_HEAD(pPool, pstNewFreeNode->uwSizeAndFlag);
     if (NULL == pstListHead)
     {
         PRINT_ERR("%s %d\n", __FUNCTION__, __LINE__);
         return;
     }
-
+    //将新分出来的节点插入第二部分找到的数组
     LOS_ListAdd(pstListHead,&(pstNewFreeNode->stFreeNodeInfo));
 }
 
@@ -586,14 +590,16 @@ LITE_OS_SEC_TEXT STATIC_INLINE VOID *osMemAllocWithCheck(VOID *pPool, UINT32  uw
 #ifdef OS_MEM_ENABLE_ALLOC_CHECK
     (VOID)LOS_MemIntegrityCheck(pPool);
 #endif
-
+    //分配的时候要加上头，同时字节对齐
     uwAllocSize = OS_MEM_ALIGN(uwSize + OS_MEM_NODE_HEAD_SIZE, OS_MEM_ALIGN_SIZE);
+    //在第二部分的链表数组中找合适的node
     pstAllocNode = osMemFindSuitableFreeBlock(pPool, uwAllocSize);
     if (pstAllocNode == NULL)
     {
         PRINT_ERR("[%s] No suitable free block\n", __FUNCTION__);/*lint !e515*/
         return NULL;
     }
+    //找到的node大小减去需要的之后还能分配出一个新的node，则将该node分割为两个
     if ((uwAllocSize + OS_MEM_NODE_HEAD_SIZE + OS_MEM_ALIGN_SIZE) <= pstAllocNode->uwSizeAndFlag)
     {
         osMemSpitNode(pPool, pstAllocNode, uwAllocSize);
@@ -682,14 +688,17 @@ LITE_OS_SEC_TEXT_INIT UINT32 LOS_MemInit(VOID *pPool, UINT32  uwSize)
     }
 
     uvIntSave = LOS_IntLock();
-
+    //强制类型转换为一个mem pool的结构，并初始化
     pstPoolInfo = (LOS_MEM_POOL_INFO *)pPool;
     pstPoolInfo->pPoolAddr = pPool;
     pstPoolInfo->uwPoolSize = uwSize;
+    //跳过mem pool 结构，初始化第二部分链表数组，这部分是一个27个元素的数组，每一个元素是一个链表，管理free状态的内存
     LOS_DLnkInitMultiHead(OS_MEM_HEAD_ADDR(pPool));
     pstNewNode = OS_MEM_FIRST_NODE(pPool);
+    //跳过第一部分和第二部分初始化为一个node头，并剩最后一个空余节点
     pstNewNode->uwSizeAndFlag = ((uwSize - ((UINT32)pstNewNode - (UINT32)pPool)) - OS_MEM_NODE_HEAD_SIZE);
     pstNewNode->pstPreNode = (LOS_MEM_DYN_NODE *)NULL;
+    //根据内存池大小，在第二部分数组中找到合适的链表元素
     pstListHead = OS_MEM_HEAD(pPool, pstNewNode->uwSizeAndFlag);
     if (NULL == pstListHead)
     {
@@ -697,7 +706,7 @@ LITE_OS_SEC_TEXT_INIT UINT32 LOS_MemInit(VOID *pPool, UINT32  uwSize)
         LOS_IntRestore(uvIntSave);
         return LOS_NOK;
     }
-
+    //将需要管理的这部分内存插入找到的链表节点
     LOS_ListTailInsert(pstListHead,&(pstNewNode->stFreeNodeInfo));
     pstEndNode = (LOS_MEM_DYN_NODE *)OS_MEM_END_NODE(pPool, uwSize);
     memset(pstEndNode, 0 ,sizeof(*pstEndNode));
