@@ -495,8 +495,9 @@ LITE_OS_SEC_TEXT_INIT UINT32 osTaskInit(VOID)
     UINT32 uwSize;
     UINT32 uwIndex;
     LOS_DL_LIST *pstListObject;
-
+    //最大任务数，加1是由于有idle任务
     uwSize = (g_uwTskMaxNum + 1) * sizeof(LOS_TASK_CB);
+    //在system heap中申请TCB控制块数组
     g_pstTaskCBArray = (LOS_TASK_CB *)LOS_MemAlloc(m_aucSysMem0, uwSize);
     if (NULL == g_pstTaskCBArray)
     {
@@ -504,21 +505,27 @@ LITE_OS_SEC_TEXT_INIT UINT32 osTaskInit(VOID)
     }
 
     (VOID)memset(g_pstTaskCBArray, 0, uwSize);
+    //初始化timer链表
     LOS_ListInit(&g_stTaskTimerList);
+    //初始化freetsk 链表，该链表管理所有没有被使用的tcb控制块
     LOS_ListInit(&g_stLosFreeTask);
+    //初始化TCB任务控制块回收链表
     LOS_ListInit(&g_stTskRecyleList);
+    //初始化TCB控制块数组中的TCB控制块，刚开始状态全部是unused，并且放入freetsk链表
     for (uwIndex = 0; uwIndex <= LOSCFG_BASE_CORE_TSK_LIMIT; uwIndex++)
     {
         g_pstTaskCBArray[uwIndex].usTaskStatus = OS_TASK_STATUS_UNUSED;
         g_pstTaskCBArray[uwIndex].uwTaskID = uwIndex;
         LOS_ListTailInsert(&g_stLosFreeTask, &g_pstTaskCBArray[uwIndex].stPendList);
     }
-
+    
     (VOID)memset((VOID *)(&g_stLosTask), 0, sizeof(g_stLosTask));
+    //初始化用于任务切换记录当前正在运行的任务和新选择的任务的管理结构
     g_stLosTask.pstRunTask = &g_pstTaskCBArray[g_uwTskMaxNum];
     g_stLosTask.pstRunTask->uwTaskID = uwIndex;
     g_stLosTask.pstRunTask->usTaskStatus = (OS_TASK_STATUS_UNUSED | OS_TASK_STATUS_RUNNING);
     g_stLosTask.pstRunTask->usPriority = OS_TASK_PRIORITY_LOWEST + 1;
+    //初始化任务优先级管理队列
     osPriqueueInit();
     uwSize = sizeof(LOS_DL_LIST) * OS_TSK_SORTLINK_LEN;
     pstListObject = (LOS_DL_LIST *)LOS_MemAlloc(m_aucSysMem0, uwSize);
@@ -530,6 +537,7 @@ LITE_OS_SEC_TEXT_INIT UINT32 osTaskInit(VOID)
     (VOID)memset((VOID *)pstListObject, 0, uwSize);
     g_stTskSortLink.pstSortLink = pstListObject;
     g_stTskSortLink.usCursor = 0;
+    //初始化用于时间片切换使用的链表
     for (uwIndex = 0; uwIndex < OS_TSK_SORTLINK_LEN; uwIndex++, pstListObject++)
     {
         LOS_ListInit(pstListObject);
