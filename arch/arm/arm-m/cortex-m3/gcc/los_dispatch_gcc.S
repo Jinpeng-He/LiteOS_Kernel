@@ -81,11 +81,13 @@
 ****************************************************************************************/
     .type LOS_StartToRun, %function
 LOS_StartToRun:
+    //关闭中断
     CPSID   I
 
     /**
      * Set PendSV and SysTick prority to the lowest.
      * read ---> modify ---> write-back.
+     *寄存器控制，设置PendSV和systick的优先级
      */
     LDR     R0, =OS_NVIC_SYSPRI2
     LDR     R1, =OS_NVIC_PENDSV_SYSTICK_PRI
@@ -95,6 +97,7 @@ LOS_StartToRun:
 
     /**
      * Set g_bTaskScheduled = 1.
+     *使能调度，全局调度的总开关，如果该变量的值不为1，那么所有的调度功能不会生效
      */
     LDR     R0, =g_bTaskScheduled
     MOV     R1, #1
@@ -102,6 +105,8 @@ LOS_StartToRun:
 
     /**
      * Set g_stLosTask.pstRunTask = g_stLosTask.pstNewTask.
+     * |<---pstRunTask--->|<---pstNewTask--->|
+     * |<----4 byte------>|<----4 byte------>|
      */
     LDR     R0, =g_stLosTask
     LDR     R1, [R0, #4]
@@ -110,10 +115,15 @@ LOS_StartToRun:
     /**
      * Set g_stLosTask.pstRunTask->usTaskStatus |= OS_TASK_STATUS_RUNNING.
      */
+    //R1 = g_stLosTask.pstRunTask
     LDR     R1, [R0]
+    // R2 = g_stLosTask.pstRunTask->usTaskStatus
     LDRH    R2, [R1, #4]
+    // R3 = OS_TASK_STATUS_RUNNING
     MOV     R3, #OS_TASK_STATUS_RUNNING
+    // R2 = R2|R3
     ORR     R2, R2, R3
+    //g_stLosTask.pstRunTask->usTaskStatus = *(R1+4) = R2 ,这里4就是usTaskStatus在LOS_TASK_CB中的偏移，R1为pStackPointer
     STRH    R2, [R1, #4]
 
     /**
@@ -133,17 +143,20 @@ LOS_StartToRun:
      *                                                            R12 to PSP--->|
      *                                    Stack pointer after LOS_StartToRun--->|
      */
+     // R12 = *R1 = *pStackPointer,为当前的栈顶指针,任务上下文出栈
     LDR     R12, [R1]
     ADD     R12, R12, #36          /* skip R4-R11, PRIMASK. */
-    LDMFD   R12!, {R0-R7}
+    LDMFD   R12!, {R0-R7}       //从R12处作为栈出栈到R0-R7
 
     /**
      * Set the stack pointer of g_stLosTask.pstRunTask to PSP.
+     PSP = R12
      */
     MSR     PSP, R12
 
     /**
      * Set the CONTROL register, after schedule start, privilege level and stack = PSP.
+     * 栈指针从MSP切换到PSP
      */
     MOV     R12, #2
     MSR     CONTROL, R12
@@ -151,12 +164,14 @@ LOS_StartToRun:
     /**
      * Enable interrupt. (The default PRIMASK value is 0, so enable directly)
      */
+    // LR = R5 = osTaskExit 任务执行完毕退出时候执行的函数
     MOV     LR, R5
     CPSIE   I
 
     /**
      * Jump directly to the default PC of g_stLosTask.pstRunTask, the field information
      * of the main function will be destroyed and will never be returned.
+     * PC = R6 跳转到新的任务执行
      */
     BX      R6
 
@@ -198,6 +213,7 @@ LOS_IntRestore:
 ****************************************************************************************/
     .type osTaskSchedule, %function
 osTaskSchedule:
+    //软件触发PendSV中断
     LDR     R0, =OS_NVIC_INT_CTRL
     LDR     R1, =OS_NVIC_PENDSVSET
     STR     R1, [R0]
@@ -219,7 +235,9 @@ PendSV_Handler:
      * R12: Save the interruption state of the current running task.
      * Disable all interrupts except Reset,NMI and HardFault
      */
+    // R12 = PRIMASK 保存当前任务的中断状态，用于恢复
     MRS     R12, PRIMASK
+    //关闭中断
     CPSID   I
 
     /**
@@ -236,6 +254,7 @@ TaskSwitch:
     /**
      * R0 = now stack pointer of the current running task.
      */
+    // R0 = PSP
     MRS     R0, PSP
 
     /**
@@ -257,6 +276,7 @@ TaskSwitch:
      *                                   |<---PSP to R0
      *           |<---Top of the stack, save to g_stLosTask.pstRunTask->pStackPointer
      */
+    //R4-R12依次进栈，保存任务上下文，开始切换,当前以R0作为栈地址指针
     STMFD   R0!, {R4-R12}          /* save the core registers and PRIMASK. */
 
     /**
@@ -269,22 +289,30 @@ TaskSwitch:
      * Save the stack pointer of the current running task to TCB.
      * (g_stLosTask.pstRunTask->pStackPointer = R0)
      */
+    // R6 = g_stLosTask.pstRunTask->pStackPointer
     LDR     R6, [R5]
+    //g_stLosTask.pstRunTask->pStackPointer = R0，保存栈指针
     STR     R0, [R6]
 
     /**
      * Clear the RUNNING state of the current running task.
      * (g_stLosTask.pstRunTask->usTaskStatus &= ~OS_TASK_STATUS_RUNNING)
      */
+    // R7 = g_stLosTask.pstRunTask->usTaskStatus，R6指向pstRunTask，所以这里加4获取状态
     LDRH    R7, [R6, #4]
+    // R7 &= ~R8
     BIC     R7, R7, R8
+    //写回 g_stLosTask.pstRunTask->usTaskStatus = *(R6+4) = R7
     STRH    R7, [R6, #4]
 
     /**
      * Switch the current running task to the next running task.
      * (g_stLosTask.pstRunTask = g_stLosTask.pstNewTask)
      */
+    // R5指向g_stLosTask也就是pstRunTask，里面跳过4个字节就是pstNewTask
+    // R0 = pstNewTask
     LDR     R0, [R5, #4]
+    //pstRunTask=*R5 = R0 = pstNewTask
     STR     R0, [R5]
 
     /**
@@ -333,15 +361,18 @@ TaskSwitch:
      *                                   |<---      cpu auto restoring      --->|
      *                                 Stack pointer after exiting exception--->|
      */
+    // 以R1作为栈指针出栈
     LDMFD   R1!, {R4-R12}          /* restore the core registers and PRIMASK. */
 
     /**
      * Set the stack pointer of the next running task to PSP.
      */
+    // 栈指针重新赋值切换到新的任务的栈PSP = R1
     MSR     PSP, R1
 
     /**
      * Restore the interruption state of the next running task.
+     *PRIMASK = R12将新的任务的状态恢复，跳转
      */
     MSR     PRIMASK, R12
     BX      LR
