@@ -276,7 +276,7 @@ TaskSwitch:
      *                                   |<---PSP to R0
      *           |<---Top of the stack, save to g_stLosTask.pstRunTask->pStackPointer
      */
-    //R4-R12依次进栈，保存任务上下文，开始切换,当前以R0作为栈地址指针
+    //R4-R12依次进栈，保存任务上下文，开始切换,当前以R0作为栈地址指针,由于中断发生的时候R0-R3，R12，PC,LR,xPSR的值是自动保存的，所以这里不用保存
     STMFD   R0!, {R4-R12}          /* save the core registers and PRIMASK. */
 
     /**
@@ -372,7 +372,7 @@ TaskSwitch:
 
     /**
      * Restore the interruption state of the next running task.
-     *PRIMASK = R12将新的任务的状态恢复，跳转
+     *PRIMASK = R12将新的任务的状态恢复，退出TaskSwitch
      */
     MSR     PRIMASK, R12
     BX      LR
